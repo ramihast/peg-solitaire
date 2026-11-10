@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <title>Peg Solitaire</title>
 <style>
 :root{
@@ -16,6 +16,7 @@
   --radius:14px; --gap:clamp(10px,2vw,20px);
   --size:min(94vw, 620px, calc(100dvh - 300px));
   --cell:calc(100% / 10.5);
+  --hs:.86;
 }
 body.contrast{
   --wood-light:#f3dcb5; --wood-mid:#e6c48f; --wood-dark:#c99a5c;
@@ -30,6 +31,8 @@ body{
   color:var(--text);
   background:radial-gradient(ellipse at 50% 30%,var(--bg1),var(--bg2) 75%) fixed;
   overflow-x:hidden;
+  -webkit-tap-highlight-color:transparent;
+  -webkit-text-size-adjust:100%;
 }
 .app{
   max-width:1200px;margin:0 auto;padding:var(--gap);
@@ -64,7 +67,7 @@ header p{margin:.2rem 0 0;color:var(--muted);font-size:.95rem}
   box-shadow:inset 0 0 0 1px rgba(110,70,30,.18);
 }
 .hole{
-  position:absolute;width:calc(var(--cell) * .86);aspect-ratio:1;
+  position:absolute;width:calc(var(--cell) * var(--hs,.86));aspect-ratio:1;
   transform:translate(-50%,-50%);border-radius:50%;cursor:pointer;outline:none;
   display:grid;place-items:center;
 }
@@ -137,7 +140,8 @@ body.over:not(.won) .board{filter:saturate(.8)}
 .controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:8px}
 button{font:inherit;color:var(--text);background:var(--btn);border:1px solid var(--panel-border);
   border-radius:10px;min-height:44px;min-width:44px;padding:8px 12px;cursor:pointer;
-  display:inline-flex;align-items:center;justify-content:center;gap:6px;transition:background .15s}
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;transition:background .15s;
+  touch-action:manipulation}
 button:hover:not(:disabled){background:var(--btn-hover)}
 button:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
 button:disabled{opacity:.4;cursor:not-allowed}
@@ -145,12 +149,19 @@ button.primary{background:#7a4d22;border-color:#a8703a}
 button.primary:hover{background:#8d5a29}
 .icon{font-size:1.05em;line-height:1}
 
+/* ---------- Corner buttons (shown on compact screens only) ---------- */
+.corner{display:none;position:fixed;z-index:30;top:calc(env(safe-area-inset-top,0px) + 6px);
+  width:44px;height:44px;padding:0;border-radius:50%;font-size:1.35rem;font-weight:700;line-height:1;
+  background:var(--panel);box-shadow:0 4px 12px rgba(0,0,0,.45)}
+.corner-left{left:calc(env(safe-area-inset-left,0px) + 8px)}
+.corner-right{right:calc(env(safe-area-inset-right,0px) + 8px)}
+
 /* ---------- Dialogs ---------- */
 dialog{border:1px solid var(--panel-border);border-radius:var(--radius);background:#2a221d;color:var(--text);
-  width:min(560px,94vw);max-height:88dvh;padding:0;box-shadow:0 20px 60px rgba(0,0,0,.7)}
+  width:min(560px,94vw);max-height:88vh;max-height:88dvh;padding:0;box-shadow:0 20px 60px rgba(0,0,0,.7)}
 body.contrast dialog{background:#111}
 dialog::backdrop{background:rgba(0,0,0,.6)}
-.dlg{padding:20px 22px;overflow:auto;max-height:88dvh}
+.dlg{padding:20px 22px;overflow:auto;max-height:88vh;max-height:88dvh}
 .dlg h2{margin:0 0 10px;font-size:1.35rem;padding-right:48px}
 .dlg h3{margin:16px 0 4px;font-size:1.02rem;color:var(--accent)}
 .dlg p,.dlg li{line-height:1.5;color:#eadccd}
@@ -165,6 +176,7 @@ kbd{background:#000;border:1px solid #666;border-radius:4px;padding:0 5px;font-s
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .confetti{position:fixed;top:-20px;width:9px;height:14px;z-index:60;pointer-events:none;border-radius:2px;animation:fall linear forwards}
 @keyframes fall{to{transform:translateY(110vh) rotate(720deg);opacity:.2}}
+#menuSlot:empty{display:none}
 
 @media (min-width:900px){
   :root{--size:min(58vw, calc(100dvh - 120px), 720px)}
@@ -179,9 +191,91 @@ kbd{background:#000;border:1px solid #666;border-radius:4px;padding:0 5px;font-s
 }
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 body.no-anim *,body.no-anim *::before,body.no-anim *::after{animation:none!important;transition:none!important}
+
+/* =====================================================================
+   COMPACT (phone) LAYOUT: everything fits in one screen, no page scroll.
+   Controls move into the Settings menu (top-right), help into top-left.
+   Keep this block AFTER the other media queries so it overrides them.
+   ===================================================================== */
+@media (max-width:640px), (max-height:600px){
+  :root{--hs:.96}
+  html,body{height:100%;overflow:hidden;overscroll-behavior:none}
+  body{-webkit-user-select:none;user-select:none;touch-action:manipulation}
+  .corner{display:inline-flex}
+
+  .app{
+    height:100vh;height:100dvh;width:100%;max-width:none;margin:0;gap:6px;
+    padding:calc(env(safe-area-inset-top,0px) + 6px) calc(env(safe-area-inset-right,0px) + 8px)
+            calc(env(safe-area-inset-bottom,0px) + 8px) calc(env(safe-area-inset-left,0px) + 8px);
+    grid-template-columns:minmax(0,1fr);
+    grid-template-rows:auto minmax(0,1fr) auto;
+    grid-template-areas:"head" "board" "panel";
+    align-items:stretch;justify-items:stretch;
+  }
+  header{min-height:44px;display:flex;align-items:center;justify-content:center;padding:0 52px}
+  h1{font-size:clamp(1.05rem,5vw,1.5rem)}
+  header p{display:none}
+
+  /* Board fills the free area and stays a perfect circle, centered */
+  .board-wrap{width:100%;height:100%;min-width:0;min-height:0;aspect-ratio:auto;
+    justify-self:stretch;align-self:stretch;container-type:size}
+  .board{inset:auto;left:50%;top:50%;transform:translate(-50%,-50%);
+    width:min(100cqw,100cqh);height:min(100cqw,100cqh);
+    box-shadow:0 12px 22px rgba(0,0,0,.5), inset 0 -8px 14px rgba(90,55,20,.45), inset 0 5px 8px rgba(255,240,210,.55)}
+  @supports not (width:1cqw){
+    :root{--size:min(94vw, calc(100vh - 190px))}
+    .board-wrap{width:var(--size);height:var(--size);justify-self:center;container-type:normal}
+    .board{inset:0;left:0;top:0;transform:none;width:auto;height:auto}
+  }
+
+  /* Slim status bar */
+  .panel{width:100%;max-width:620px;justify-self:center;padding:6px;gap:6px;border-radius:12px;box-shadow:none}
+  .stats{gap:6px}
+  .stat{display:flex;gap:6px;align-items:baseline;justify-content:center;padding:4px 8px}
+  .stat b{display:inline;font-size:1.2rem}
+  .stat span{font-size:.8rem}
+  .status{min-height:2.6em;padding:4px 8px;font-size:.85rem;line-height:1.2;text-wrap:balance}
+  .tip{position:fixed;z-index:20;left:calc(env(safe-area-inset-left,0px) + 8px);right:calc(env(safe-area-inset-right,0px) + 8px);
+    bottom:calc(env(safe-area-inset-bottom,0px) + 8px);box-shadow:0 8px 20px rgba(0,0,0,.6)}
+
+  /* Menus: compact popover panels anchored under the corner buttons */
+  dialog::backdrop{background:rgba(0,0,0,.4)}
+  #helpDlg,#settingsDlg{
+    margin:0;
+    width:min(380px, calc(100vw - 16px - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px)));
+    max-height:calc(100vh - 66px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));
+    max-height:calc(100dvh - 66px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));
+    overflow:hidden;
+  }
+  #helpDlg{inset:calc(env(safe-area-inset-top,0px) + 56px) auto auto calc(env(safe-area-inset-left,0px) + 8px)}
+  #settingsDlg{inset:calc(env(safe-area-inset-top,0px) + 56px) calc(env(safe-area-inset-right,0px) + 8px) auto auto}
+  #helpDlg .dlg,#settingsDlg .dlg{max-height:inherit;padding:16px 18px}
+  #menuSlot{margin-bottom:8px}
+  #menuSlot .controls{grid-template-columns:repeat(2,minmax(0,1fr))}
+  #menuSlot #helpBtn,#menuSlot #settingsBtn{display:none}   /* replaced by the corner buttons */
+  .setting-sound{display:none}                              /* Sound is a button in the menu */
+}
+
+/* Phone landscape: board on the left, title + status on the right */
+@media (orientation:landscape) and (max-height:600px) and (min-width:560px){
+  .app{
+    grid-template-columns:minmax(0,1fr) clamp(170px,32vw,260px);
+    grid-template-rows:auto minmax(0,1fr);
+    grid-template-areas:"board head" "board panel";
+    align-items:start;
+  }
+  header{justify-content:flex-start;text-align:left;padding:0 52px 0 0}
+  h1{font-size:clamp(1rem,2.6vw,1.3rem)}
+  .board-wrap{align-self:stretch}
+  .panel{align-self:start;width:100%}
+  .stats{grid-template-columns:1fr}
+}
 </style>
 </head>
 <body>
+<button class="corner corner-left" id="cornerHelp" aria-label="How to play" aria-haspopup="dialog"><span aria-hidden="true">?</span></button>
+<button class="corner corner-right" id="cornerSettings" aria-label="Settings and game menu" aria-haspopup="dialog"><span aria-hidden="true">⚙</span></button>
+
 <div class="app">
   <header>
     <h1>Peg Solitaire</h1>
@@ -203,9 +297,9 @@ body.no-anim *,body.no-anim *::before,body.no-anim *::after{animation:none!impor
     </div>
     <div class="status" id="status" aria-hidden="true">Your turn</div>
     <div class="controls">
-      <button id="undoBtn"><span class="icon" aria-hidden="true">↶</span>Undo</button>
-      <button id="redoBtn"><span class="icon" aria-hidden="true">↷</span>Redo</button>
-      <button id="hintBtn"><span class="icon" aria-hidden="true">💡</span>Hint</button>
+      <button id="undoBtn" data-close><span class="icon" aria-hidden="true">↶</span>Undo</button>
+      <button id="redoBtn" data-close><span class="icon" aria-hidden="true">↷</span>Redo</button>
+      <button id="hintBtn" data-close><span class="icon" aria-hidden="true">💡</span>Hint</button>
       <button id="restartBtn"><span class="icon" aria-hidden="true">⟲</span>Restart</button>
       <button id="newBtn" class="primary"><span class="icon" aria-hidden="true">★</span>New Game</button>
       <button id="soundBtn" aria-pressed="true"><span class="icon" aria-hidden="true" id="soundIcon">🔊</span><span id="soundLabel">Sound on</span></button>
@@ -238,12 +332,13 @@ body.no-anim *,body.no-anim *::before,body.no-anim *::after{animation:none!impor
       <li><strong>Hint</strong>: shows one legal move with a blue pulsing ring. Press it again to see a different move.</li>
       <li><strong>Restart</strong>: puts the current game back at its starting position.</li>
       <li><strong>New Game</strong>: starts a fresh standard game and clears all history.</li>
+      <li>On phones these actions live in the <strong>⚙ Settings</strong> menu in the top-right corner.</li>
     </ul>
     <h3>Keyboard</h3>
     <ul>
       <li><kbd>Tab</kbd> moves focus into the board. The <kbd>←</kbd> <kbd>↑</kbd> <kbd>→</kbd> <kbd>↓</kbd> arrow keys move between holes.</li>
       <li><kbd>Enter</kbd> or <kbd>Space</kbd> selects a peg or jumps into a highlighted hole.</li>
-      <li><kbd>Esc</kbd> cancels a selection or closes a dialog.</li>
+      <li><kbd>Esc</kbd> cancels a selection or closes a menu.</li>
     </ul>
     <h3>End of the game</h3>
     <p>When no legal jumps are left, the game ends and you see your result. One peg left is a win.</p>
@@ -255,7 +350,8 @@ body.no-anim *,body.no-anim *::before,body.no-anim *::after{animation:none!impor
   <div class="dlg">
     <button class="close-x" data-close aria-label="Close settings">✕</button>
     <h2 id="setTitle">Settings</h2>
-    <label class="setting">Sound effects <input type="checkbox" id="optSound"></label>
+    <div id="menuSlot"></div>
+    <label class="setting setting-sound">Sound effects <input type="checkbox" id="optSound"></label>
     <label class="setting">High contrast theme <input type="checkbox" id="optContrast"></label>
     <label class="setting">Reduce animations <input type="checkbox" id="optAnim"></label>
     <div class="dlg-actions"><button class="primary" data-close>Done</button></div>
@@ -372,6 +468,23 @@ body.no-anim *,body.no-anim *::before,body.no-anim *::after{animation:none!impor
     el.innerHTML = '<span class="pit"></span><span class="peg"></span>';
     boardEl.appendChild(el); holes.set(i,el);
   }
+
+  // ---------- Compact layout: move the existing controls into the Settings menu ----------
+  // The very same control elements (and their handlers) are moved, never duplicated.
+  const controlsEl = document.querySelector('.controls');
+  const panelEl = document.querySelector('.panel');
+  const menuSlot = $('menuSlot');
+  const compactMQ = window.matchMedia('(max-width:640px), (max-height:600px)');
+  function placeControls(){
+    if (compactMQ.matches){ if (controlsEl.parentNode !== menuSlot) menuSlot.appendChild(controlsEl); }
+    else if (controlsEl.parentNode !== panelEl){ panelEl.appendChild(controlsEl); }
+  }
+  if (compactMQ.addEventListener) compactMQ.addEventListener('change', placeControls);
+  else if (compactMQ.addListener) compactMQ.addListener(placeControls);
+  placeControls();
+
+  // Block pinch/double-tap page zoom (Safari gesture events)
+  ['gesturestart','gesturechange','gestureend'].forEach(t => document.addEventListener(t, e => e.preventDefault()));
 
   // ---------- Rendering ----------
   let statusOverride = null;
@@ -599,18 +712,18 @@ body.no-anim *,body.no-anim *::before,body.no-anim *::after{animation:none!impor
   });
   boardEl.addEventListener('focusin', e=>{ const h=e.target.closest('.hole'); if(h) state.focus=+h.dataset.i; });
 
-  // ---------- Dialogs (native modal: focus trapped, Esc closes) ----------
+  // ---------- Dialogs / menus (native modal: focus trapped, Esc closes, backdrop tap closes) ----------
   let lastFocus=null;
   function openDialog(d){
     if (d.open) return;
-    document.querySelectorAll('dialog[open]').forEach(x=>x.close());
+    document.querySelectorAll('dialog[open]').forEach(x=>x.close());   // opening one menu closes the other
     lastFocus=document.activeElement;
     try { d.showModal(); } catch { d.setAttribute('open',''); }
     const f=d.querySelector('.dlg-actions .primary') || d.querySelector('button'); f && f.focus();
   }
   document.querySelectorAll('dialog').forEach(d=>{
     d.addEventListener('close', ()=>{
-      if (lastFocus && document.contains(lastFocus)) lastFocus.focus();
+      if (lastFocus && document.contains(lastFocus) && lastFocus.getClientRects().length) lastFocus.focus();
       else holes.get(state.focus).focus();
     });
     d.addEventListener('click', e=>{
@@ -619,6 +732,7 @@ body.no-anim *,body.no-anim *::before,body.no-anim *::after{animation:none!impor
   });
 
   // ---------- Buttons ----------
+  function openSettings(){ $('optSound').checked=settings.sound; $('optContrast').checked=settings.contrast; $('optAnim').checked=settings.noAnim; openDialog($('settingsDlg')); }
   $('undoBtn').onclick=undo;
   $('redoBtn').onclick=redo;
   $('hintBtn').onclick=hint;
@@ -628,7 +742,9 @@ body.no-anim *,body.no-anim *::before,body.no-anim *::after{animation:none!impor
   $('playAgain').onclick=()=>{ $('endDlg').close(); reset(); announce('New game started.'); holes.get(CENTER).focus(); };
   $('endUndo').onclick=()=>{ $('endDlg').close(); undo(); };
   $('helpBtn').onclick=()=>openDialog($('helpDlg'));
-  $('settingsBtn').onclick=()=>{ $('optSound').checked=settings.sound; $('optContrast').checked=settings.contrast; $('optAnim').checked=settings.noAnim; openDialog($('settingsDlg')); };
+  $('settingsBtn').onclick=openSettings;
+  $('cornerHelp').onclick=()=>openDialog($('helpDlg'));
+  $('cornerSettings').onclick=openSettings;
   $('soundBtn').onclick=()=>{ settings.sound=!settings.sound; applySettings(); if(settings.sound) sfx.select(); announce(settings.sound?'Sound on':'Sound muted'); };
   $('optSound').onchange=e=>{ settings.sound=e.target.checked; applySettings(); };
   $('optContrast').onchange=e=>{ settings.contrast=e.target.checked; applySettings(); };
