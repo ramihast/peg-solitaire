@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Peg Solitaire</title>
+<style>
+:root{
+  --bg1:#2b2420; --bg2:#15110e;
+  --wood-light:#e9c99a; --wood-mid:#d8b07a; --wood-dark:#b88a52; --wood-edge:#8f6435;
+  --peg-hi:#a0603a; --peg-mid:#4a2412; --peg-dark:#1e0c05;
+  --hole-dark:#7a5530;
+  --accent:#ffcf4a; --dest:#2fd27a; --hint:#4ab8ff; --danger:#ff6b6b;
+  --text:#f6ece0; --muted:#cbb8a4; --panel:#2f2621ee; --panel-border:#5a4a3e;
+  --btn:#4a3a30; --btn-hover:#5c493c; --focus:#ffffff;
+  --radius:14px; --gap:clamp(10px,2vw,20px);
+  --size:min(94vw, 620px, calc(100dvh - 300px));
+  --cell:calc(100% / 10.5);
+}
+body.contrast{
+  --wood-light:#f3dcb5; --wood-mid:#e6c48f; --wood-dark:#c99a5c;
+  --peg-hi:#6a3517; --peg-mid:#2a1006; --peg-dark:#000;
+  --dest:#00a651; --hint:#0063d1; --accent:#ffb000;
+  --panel:#111; --btn:#222; --btn-hover:#333; --muted:#e8e8e8;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  color:var(--text);
+  background:radial-gradient(ellipse at 50% 30%,var(--bg1),var(--bg2) 75%) fixed;
+  overflow-x:hidden;
+}
+.app{
+  max-width:1200px;margin:0 auto;padding:var(--gap);
+  display:grid;gap:var(--gap);justify-items:center;
+  grid-template-areas:"head" "board" "panel";
+}
+header{grid-area:head;text-align:center}
+h1{margin:0;font-size:clamp(1.4rem,4vw,2.2rem);letter-spacing:.04em;font-weight:700}
+header p{margin:.2rem 0 0;color:var(--muted);font-size:.95rem}
+
+/* ---------- Board ---------- */
+.board-wrap{grid-area:board;width:var(--size);min-width:260px;aspect-ratio:1;position:relative}
+.board{
+  position:absolute;inset:0;border-radius:50%;
+  touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;
+  background:
+    repeating-radial-gradient(ellipse at 38% 42%, transparent 0 9px, rgba(120,80,40,.07) 10px 11px, transparent 12px 19px),
+    repeating-linear-gradient(97deg, rgba(255,255,255,.05) 0 3px, transparent 3px 11px, rgba(120,80,40,.06) 11px 13px, transparent 13px 23px),
+    radial-gradient(circle at 35% 30%, var(--wood-light), var(--wood-mid) 60%, var(--wood-dark));
+  box-shadow:
+    0 30px 50px rgba(0,0,0,.55), 0 8px 14px rgba(0,0,0,.4),
+    inset 0 -10px 18px rgba(90,55,20,.45), inset 0 6px 10px rgba(255,240,210,.55);
+}
+/* recessed groove ring */
+.board::before{
+  content:"";position:absolute;inset:6.5%;border-radius:50%;pointer-events:none;
+  box-shadow:inset 0 3px 5px rgba(90,55,20,.55), inset 0 -2px 3px rgba(255,240,210,.55),
+             0 2px 2px rgba(255,240,210,.5), 0 -2px 3px rgba(90,55,20,.35);
+}
+.board::after{
+  content:"";position:absolute;inset:9%;border-radius:50%;pointer-events:none;
+  box-shadow:inset 0 0 0 1px rgba(110,70,30,.18);
+}
+.hole{
+  position:absolute;width:calc(var(--cell) * .86);aspect-ratio:1;
+  transform:translate(-50%,-50%);border-radius:50%;cursor:pointer;outline:none;
+  display:grid;place-items:center;
+}
+.hole .pit{
+  position:absolute;inset:22%;border-radius:50%;
+  background:radial-gradient(circle at 50% 40%, var(--hole-dark), #9c7344 70%, var(--wood-dark));
+  box-shadow:inset 0 3px 4px rgba(40,20,5,.7), 0 1px 1px rgba(255,240,210,.7);
+}
+.hole .peg{
+  position:absolute;inset:4%;border-radius:50%;
+  background:
+    radial-gradient(circle at 32% 28%, rgba(255,235,210,.9) 0 6%, rgba(255,220,190,.25) 14%, transparent 28%),
+    repeating-linear-gradient(115deg, rgba(0,0,0,.12) 0 2px, transparent 2px 6px),
+    radial-gradient(circle at 40% 35%, var(--peg-hi), var(--peg-mid) 55%, var(--peg-dark));
+  box-shadow:0 5px 7px rgba(30,15,5,.55), inset 0 -4px 6px rgba(0,0,0,.45);
+  transform:scale(0);opacity:0;
+  transition:transform .18s ease, opacity .18s ease, box-shadow .18s ease;
+}
+.hole.has-peg .peg{transform:scale(1);opacity:1}
+.hole.selected .peg{transform:translateY(-8%) scale(1.08);
+  box-shadow:0 0 0 3px var(--accent),0 0 0 6px rgba(0,0,0,.55),0 10px 14px rgba(20,10,0,.6)}
+.hole.selected::after{content:"✓";position:absolute;top:-18%;right:-14%;z-index:3;
+  font:700 clamp(10px,1.6vw,15px)/1 system-ui;background:var(--accent);color:#000;border-radius:50%;
+  width:1.5em;height:1.5em;display:grid;place-items:center;box-shadow:0 1px 3px rgba(0,0,0,.6)}
+/* legal destinations: color + dashed ring + dot icon */
+.hole.dest::before{
+  content:"";position:absolute;inset:0;border-radius:50%;z-index:2;
+  border:3px dashed var(--dest);box-shadow:0 0 0 2px rgba(0,0,0,.55), inset 0 0 0 2px rgba(0,0,0,.4);
+  animation:spin 6s linear infinite;
+}
+.hole.dest .pit{background:radial-gradient(circle, var(--dest) 0 28%, #0a3 30% 36%, var(--hole-dark) 40%)}
+/* jumpable neighbour cue */
+.hole.over::after{content:"×";position:absolute;z-index:3;font:900 clamp(14px,2.6vw,24px)/1 system-ui;
+  color:#fff;text-shadow:0 0 3px #000,0 0 6px #000;opacity:.9}
+/* hint */
+.hole.hint::before{content:"";position:absolute;inset:-6%;border-radius:50%;z-index:2;
+  border:3px double var(--hint);box-shadow:0 0 12px var(--hint);animation:pulse 1s ease-in-out infinite}
+.hole.hint-to .pit{background:radial-gradient(circle, var(--hint) 0 30%, var(--hole-dark) 40%)}
+.hole:focus-visible{z-index:4}
+.hole:focus-visible::before{content:"";position:absolute;inset:-12%;border-radius:50%;
+  outline:3px solid var(--focus);outline-offset:0;box-shadow:0 0 0 6px rgba(0,0,0,.7);animation:none;border:none}
+.hole.dragging .peg{opacity:.25}
+.hole.landed .peg{animation:land .28s ease}
+.ghost-remove{position:absolute;width:calc(var(--cell)*.78);aspect-ratio:1;border-radius:50%;
+  transform:translate(-50%,-50%);pointer-events:none;
+  background:radial-gradient(circle at 40% 35%, var(--peg-hi), var(--peg-mid) 55%, var(--peg-dark));
+  animation:vanish .35s ease forwards}
+.drag-peg{position:fixed;pointer-events:none;z-index:50;border-radius:50%;transform:translate(-50%,-50%) scale(1.12);
+  background:radial-gradient(circle at 32% 28%, rgba(255,235,210,.9) 0 6%, transparent 28%),
+             radial-gradient(circle at 40% 35%, var(--peg-hi), var(--peg-mid) 55%, var(--peg-dark));
+  box-shadow:0 0 0 3px var(--accent),0 14px 18px rgba(0,0,0,.6)}
+body.won .board{box-shadow:0 0 0 4px var(--accent),0 0 40px rgba(255,207,74,.6),0 30px 50px rgba(0,0,0,.55),
+  inset 0 -10px 18px rgba(90,55,20,.45), inset 0 6px 10px rgba(255,240,210,.55)}
+body.over:not(.won) .board{filter:saturate(.8)}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulse{50%{transform:scale(1.1);opacity:.6}}
+@keyframes land{0%{transform:translateY(-25%) scale(1.15)}100%{transform:none}}
+@keyframes vanish{to{transform:translate(-50%,-50%) scale(.2);opacity:0}}
+
+/* ---------- Panel ---------- */
+.panel{grid-area:panel;width:min(100%,620px);background:var(--panel);border:1px solid var(--panel-border);
+  border-radius:var(--radius);padding:var(--gap);display:grid;gap:14px;box-shadow:0 10px 30px rgba(0,0,0,.4)}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.stat{background:rgba(0,0,0,.25);border-radius:10px;padding:8px 12px;text-align:center}
+.stat b{display:block;font-size:1.7rem;font-variant-numeric:tabular-nums}
+.stat span{color:var(--muted);font-size:.85rem}
+.status{min-height:2.8em;text-align:center;font-weight:600;padding:8px;border-radius:10px;background:rgba(0,0,0,.2);
+  display:flex;align-items:center;justify-content:center}
+.status.warn{color:var(--danger)}
+.controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:8px}
+button{font:inherit;color:var(--text);background:var(--btn);border:1px solid var(--panel-border);
+  border-radius:10px;min-height:44px;min-width:44px;padding:8px 12px;cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;transition:background .15s}
+button:hover:not(:disabled){background:var(--btn-hover)}
+button:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+button:disabled{opacity:.4;cursor:not-allowed}
+button.primary{background:#7a4d22;border-color:#a8703a}
+button.primary:hover{background:#8d5a29}
+.icon{font-size:1.05em;line-height:1}
+
+/* ---------- Dialogs ---------- */
+dialog{border:1px solid var(--panel-border);border-radius:var(--radius);background:#2a221d;color:var(--text);
+  width:min(560px,94vw);max-height:88dvh;padding:0;box-shadow:0 20px 60px rgba(0,0,0,.7)}
+body.contrast dialog{background:#111}
+dialog::backdrop{background:rgba(0,0,0,.6)}
+.dlg{padding:20px 22px;overflow:auto;max-height:88dvh}
+.dlg h2{margin:0 0 10px;font-size:1.35rem;padding-right:48px}
+.dlg h3{margin:16px 0 4px;font-size:1.02rem;color:var(--accent)}
+.dlg p,.dlg li{line-height:1.5;color:#eadccd}
+.dlg ul{padding-left:1.2em;margin:4px 0}
+.close-x{position:absolute;top:10px;right:10px}
+.dlg-actions{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;margin-top:16px}
+.setting{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid #4a3d33}
+.setting input{width:24px;height:24px;accent-color:var(--accent)}
+kbd{background:#000;border:1px solid #666;border-radius:4px;padding:0 5px;font-size:.9em}
+.tip{position:relative;background:#3d2f12;border:1px solid var(--accent);border-radius:10px;padding:10px 48px 10px 12px;font-size:.92rem}
+.tip button{position:absolute;top:4px;right:4px;background:transparent;border:none}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.confetti{position:fixed;top:-20px;width:9px;height:14px;z-index:60;pointer-events:none;border-radius:2px;animation:fall linear forwards}
+@keyframes fall{to{transform:translateY(110vh) rotate(720deg);opacity:.2}}
+
+@media (min-width:900px){
+  :root{--size:min(58vw, calc(100dvh - 120px), 720px)}
+  .app{grid-template-areas:"head head" "board panel";grid-template-columns:auto minmax(300px,380px);align-items:center}
+  .panel{width:100%}
+}
+@media (orientation:landscape) and (max-height:600px) and (min-width:560px){
+  :root{--size:min(52vw, calc(100dvh - 30px))}
+  .app{grid-template-areas:"board head" "board panel";grid-template-columns:auto 1fr;align-items:start}
+  .panel{padding:10px;gap:8px}
+  .controls{grid-template-columns:repeat(3,1fr)}
+}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+body.no-anim *,body.no-anim *::before,body.no-anim *::after{animation:none!important;transition:none!important}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Peg Solitaire</h1>
+    <p>Jump pegs to remove them. Try to leave just one.</p>
+  </header>
+
+  <div class="board-wrap">
+    <div class="board" id="board" role="grid" aria-label="Peg Solitaire board, 33 holes in a cross shape. Use arrow keys to move, Enter to select."></div>
+  </div>
+
+  <section class="panel" aria-label="Game controls and status">
+    <div class="tip" id="tip" hidden>
+      <strong>Quick start:</strong> Tap a peg, then tap a green dashed hole to jump. You can also drag pegs.
+      <button id="tipClose" aria-label="Dismiss quick start tip">✕</button>
+    </div>
+    <div class="stats">
+      <div class="stat"><b id="pegCount">32</b><span>Pegs left</span></div>
+      <div class="stat"><b id="moveCount">0</b><span>Moves</span></div>
+    </div>
+    <div class="status" id="status" aria-hidden="true">Your turn</div>
+    <div class="controls">
+      <button id="undoBtn"><span class="icon" aria-hidden="true">↶</span>Undo</button>
+      <button id="redoBtn"><span class="icon" aria-hidden="true">↷</span>Redo</button>
+      <button id="hintBtn"><span class="icon" aria-hidden="true">💡</span>Hint</button>
+      <button id="restartBtn"><span class="icon" aria-hidden="true">⟲</span>Restart</button>
+      <button id="newBtn" class="primary"><span class="icon" aria-hidden="true">★</span>New Game</button>
+      <button id="soundBtn" aria-pressed="true"><span class="icon" aria-hidden="true" id="soundIcon">🔊</span><span id="soundLabel">Sound on</span></button>
+      <button id="helpBtn"><span class="icon" aria-hidden="true">?</span>How to Play</button>
+      <button id="settingsBtn"><span class="icon" aria-hidden="true">⚙</span>Settings</button>
+    </div>
+  </section>
+</div>
+
+<div class="sr-only" aria-live="polite" aria-atomic="true" id="live"></div>
+
+<dialog id="helpDlg" aria-labelledby="helpTitle">
+  <div class="dlg">
+    <button class="close-x" data-close aria-label="Close how to play">✕</button>
+    <h2 id="helpTitle">How to Play</h2>
+    <h3>Goal</h3>
+    <p>Remove pegs by jumping over them. Aim to finish with exactly one peg left.</p>
+    <h3>Making a move</h3>
+    <ul>
+      <li>Tap or click a peg to select it. It lifts up and gets a gold ring with a ✓.</li>
+      <li>Holes you can jump into show a <strong>green dashed ring</strong> with a dot. The peg you would jump over shows a ×.</li>
+      <li>Tap a highlighted hole to jump. The peg you jumped over is removed.</li>
+      <li>You can also <strong>drag</strong> a peg onto a highlighted hole.</li>
+      <li>Jumps go straight up, down, left or right over one neighbouring peg into an empty hole. Diagonal jumps are not allowed.</li>
+      <li>Tap the selected peg again, or press <kbd>Esc</kbd>, to cancel the selection.</li>
+    </ul>
+    <h3>Buttons</h3>
+    <ul>
+      <li><strong>Undo / Redo</strong>: step backward or forward through your moves. Making a new move after Undo clears the Redo history.</li>
+      <li><strong>Hint</strong>: shows one legal move with a blue pulsing ring. Press it again to see a different move.</li>
+      <li><strong>Restart</strong>: puts the current game back at its starting position.</li>
+      <li><strong>New Game</strong>: starts a fresh standard game and clears all history.</li>
+    </ul>
+    <h3>Keyboard</h3>
+    <ul>
+      <li><kbd>Tab</kbd> moves focus into the board. The <kbd>←</kbd> <kbd>↑</kbd> <kbd>→</kbd> <kbd>↓</kbd> arrow keys move between holes.</li>
+      <li><kbd>Enter</kbd> or <kbd>Space</kbd> selects a peg or jumps into a highlighted hole.</li>
+      <li><kbd>Esc</kbd> cancels a selection or closes a dialog.</li>
+    </ul>
+    <h3>End of the game</h3>
+    <p>When no legal jumps are left, the game ends and you see your result. One peg left is a win.</p>
+    <div class="dlg-actions"><button class="primary" data-close>Got it</button></div>
+  </div>
+</dialog>
+
+<dialog id="settingsDlg" aria-labelledby="setTitle">
+  <div class="dlg">
+    <button class="close-x" data-close aria-label="Close settings">✕</button>
+    <h2 id="setTitle">Settings</h2>
+    <label class="setting">Sound effects <input type="checkbox" id="optSound"></label>
+    <label class="setting">High contrast theme <input type="checkbox" id="optContrast"></label>
+    <label class="setting">Reduce animations <input type="checkbox" id="optAnim"></label>
+    <div class="dlg-actions"><button class="primary" data-close>Done</button></div>
+  </div>
+</dialog>
+
+<dialog id="confirmDlg" aria-labelledby="confTitle" aria-describedby="confText">
+  <div class="dlg">
+    <h2 id="confTitle">Discard this game?</h2>
+    <p id="confText">Your current progress will be lost.</p>
+    <div class="dlg-actions">
+      <button data-close>Cancel</button>
+      <button class="primary" id="confirmOk">Yes, continue</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="endDlg" aria-labelledby="endTitle" aria-describedby="endText">
+  <div class="dlg">
+    <button class="close-x" data-close aria-label="Close result">✕</button>
+    <h2 id="endTitle">Game over</h2>
+    <p id="endText"></p>
+    <div class="dlg-actions">
+      <button data-close>Review board</button>
+      <button id="endUndo">Undo last move</button>
+      <button class="primary" id="playAgain">Play again</button>
+    </div>
+  </div>
+</dialog>
+
+<script>
+(() => {
+  'use strict';
+  const N = 7, CENTER = 24;
+  const DIRS = [[-1,0],[1,0],[0,-1],[0,1]];
+  const $ = id => document.getElementById(id);
+  const isValid = (r,c) => r>=0 && r<N && c>=0 && c<N && ((r>=2 && r<=4) || (c>=2 && c<=4));
+  const idx = (r,c) => r*N+c;
+  const rc = i => [Math.floor(i/N), i%N];
+
+  // ---------- Safe storage ----------
+  const store = {
+    get(k){ try { return JSON.parse(localStorage.getItem('pegsol.'+k)); } catch { return null; } },
+    set(k,v){ try { localStorage.setItem('pegsol.'+k, JSON.stringify(v)); } catch {} }
+  };
+  const settings = Object.assign({sound:true, contrast:false, noAnim:false}, store.get('settings') || {});
+
+  // ---------- Game state ----------
+  const state = { board:[], history:[], redo:[], selected:-1, hint:null, hintIdx:0, over:false, focus:CENTER };
+
+  function initialBoard(){
+    const b = new Array(N*N).fill(null);           // null = not playable
+    for (let r=0;r<N;r++) for (let c=0;c<N;c++) if (isValid(r,c)) b[idx(r,c)] = true;
+    b[CENTER] = false;
+    return b;
+  }
+
+  // Legal moves computed from the current board: jump over an occupied neighbour into an empty hole two steps away.
+  function movesFrom(i){
+    const out = [];
+    if (state.board[i] !== true) return out;
+    const [r,c] = rc(i);
+    for (const [dr,dc] of DIRS){
+      const mr=r+dr, mc=c+dc, tr=r+2*dr, tc=c+2*dc;
+      if (!isValid(mr,mc) || !isValid(tr,tc)) continue;
+      const m=idx(mr,mc), t=idx(tr,tc);
+      if (state.board[m]===true && state.board[t]===false) out.push({from:i, over:m, to:t});
+    }
+    return out;
+  }
+  function allMoves(){
+    const out=[];
+    for (let i=0;i<N*N;i++) if (state.board[i]===true) out.push(...movesFrom(i));
+    return out;
+  }
+  const pegCount = () => state.board.filter(v=>v===true).length;
+  const atStart = () => state.history.length===0;
+
+  // ---------- Sound (Web Audio, optional) ----------
+  let actx = null;
+  function tone(freq, dur=0.08, type='sine', vol=0.08, slide=0){
+    if (!settings.sound) return;
+    try {
+      if (!actx){ const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return; actx = new AC(); }
+      if (actx.state==='suspended') actx.resume();
+      const t = actx.currentTime, o = actx.createOscillator(), g = actx.createGain();
+      o.type=type; o.frequency.setValueAtTime(freq,t);
+      if (slide) o.frequency.exponentialRampToValueAtTime(freq*slide, t+dur);
+      g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+      o.connect(g).connect(actx.destination); o.start(t); o.stop(t+dur+0.02);
+    } catch {}
+  }
+  const sfx = {
+    select(){ tone(520,.06,'triangle',.06); },
+    move(){ tone(300,.09,'triangle',.1,.7); setTimeout(()=>tone(180,.12,'sine',.09),70); },
+    bad(){ tone(140,.15,'square',.04); },
+    undo(){ tone(400,.07,'sine',.06,.8); },
+    hint(){ tone(760,.08,'sine',.05); },
+    win(){ [523,659,784,1046].forEach((f,k)=>setTimeout(()=>tone(f,.18,'triangle',.08),k*120)); },
+    lose(){ tone(330,.2,'sine',.06,.75); }
+  };
+
+  // ---------- DOM construction ----------
+  const boardEl = $('board');
+  const holes = new Map();
+  const OFFSET = (100 - 7*(100/10.5))/2, CELL = 100/10.5;
+  for (let r=0;r<N;r++) for (let c=0;c<N;c++){
+    if (!isValid(r,c)) continue;
+    const i = idx(r,c), el = document.createElement('div');
+    el.className='hole'; el.dataset.i=i;
+    el.setAttribute('role','button'); el.tabIndex=-1;
+    el.style.left = (OFFSET + CELL*(c+.5))+'%';
+    el.style.top  = (OFFSET + CELL*(r+.5))+'%';
+    el.innerHTML = '<span class="pit"></span><span class="peg"></span>';
+    boardEl.appendChild(el); holes.set(i,el);
+  }
+
+  // ---------- Rendering ----------
+  let statusOverride = null;
+  function render(){
+    const sel = state.selected;
+    const selMoves = sel>=0 ? movesFrom(sel) : [];
+    const dests = new Set(selMoves.map(m=>m.to)), overs = new Set(selMoves.map(m=>m.over));
+    const h = state.hint;
+    holes.forEach((el,i)=>{
+      const has = state.board[i]===true;
+      el.classList.toggle('has-peg',has);
+      el.classList.toggle('selected',i===sel);
+      el.classList.toggle('dest',dests.has(i));
+      el.classList.toggle('over',overs.has(i));
+      el.classList.toggle('hint', !!h && (i===h.from || i===h.to));
+      el.classList.toggle('hint-to', !!h && i===h.to);
+      el.tabIndex = i===state.focus ? 0 : -1;
+      const [r,c]=rc(i);
+      let label = `Row ${r+1}, column ${c+1}: ` + (has ? 'peg' : 'empty');
+      if (i===sel) label += ', selected';
+      if (dests.has(i)) label += ', legal destination';
+      if (overs.has(i)) label += ', can be jumped';
+      if (h && i===h.from) label += ', hint: move this peg';
+      if (h && i===h.to) label += ', hint destination';
+      el.setAttribute('aria-label',label);
+      el.setAttribute('aria-pressed', i===sel ? 'true':'false');
+    });
+    $('pegCount').textContent = pegCount();
+    $('moveCount').textContent = state.history.length;
+    $('undoBtn').disabled = state.history.length===0;
+    $('redoBtn').disabled = state.redo.length===0;
+    $('hintBtn').disabled = state.over;
+    $('restartBtn').disabled = atStart();
+    document.body.classList.toggle('over',state.over);
+    document.body.classList.toggle('won',state.over && pegCount()===1);
+
+    const st = $('status');
+    st.classList.remove('warn');
+    if (statusOverride){ st.textContent = statusOverride.text; if (statusOverride.warn) st.classList.add('warn'); }
+    else if (state.over) st.textContent = pegCount()===1 ? '🏆 Game complete. You won!' : `No more moves. ${pegCount()} pegs left.`;
+    else if (sel>=0) st.textContent = `Peg selected: ${selMoves.length} jump${selMoves.length===1?'':'s'} available`;
+    else st.textContent = 'Your turn: pick a peg';
+  }
+
+  let liveTimer, statusTimer;
+  function announce(msg){
+    const live=$('live'); clearTimeout(liveTimer);
+    live.textContent=''; liveTimer=setTimeout(()=>live.textContent=msg,40);
+  }
+  function flash(text, warn=false){
+    statusOverride={text,warn}; clearTimeout(statusTimer);
+    statusTimer=setTimeout(()=>{statusOverride=null;render();},1800);
+    render(); announce(text);
+  }
+  function clearFlash(){ statusOverride=null; clearTimeout(statusTimer); }
+
+  // ---------- Actions ----------
+  function apply(m){ state.board[m.from]=false; state.board[m.over]=false; state.board[m.to]=true; }
+  function revert(m){ state.board[m.from]=true; state.board[m.over]=true; state.board[m.to]=false; }
+
+  function animateMove(m){
+    const t=holes.get(m.to);
+    t.classList.remove('landed'); void t.offsetWidth; t.classList.add('landed');
+    const src=holes.get(m.over), g=document.createElement('div');
+    g.className='ghost-remove'; g.style.left=src.style.left; g.style.top=src.style.top;
+    boardEl.appendChild(g); setTimeout(()=>g.remove(),400);
+  }
+
+  function doMove(m){
+    if (state.over) return;
+    // Re-check legality against the live board; never allow an illegal state.
+    if (!movesFrom(m.from).some(x=>x.to===m.to)){ illegal(); return; }
+    apply(m); state.history.push(m); state.redo=[];
+    state.selected=-1; state.hint=null; state.hintIdx=0; state.focus=m.to;
+    clearFlash(); sfx.move(); render(); animateMove(m);
+    announce(`Jumped. ${pegCount()} pegs left.`);
+    checkEnd();
+  }
+
+  function checkEnd(){
+    if (allMoves().length) return;
+    state.over=true; state.selected=-1; render();
+    const n=pegCount();
+    const won=n===1;
+    $('endTitle').textContent = won ? '🏆 You solved it!' : 'No more moves';
+    $('endText').textContent = won
+      ? (state.board[CENTER] ? 'Perfect! One peg left, right in the center. That is the classic solution.' : 'Excellent! Only one peg left. Can you finish in the center next time?')
+      : `You finished with ${n} pegs left. ${n<=3 ? 'Very close! ' : ''}Try again, or use Undo to explore another path.`;
+    announce(won ? 'Game complete. You won with one peg left!' : `No more moves. ${n} pegs left.`);
+    if (won){ sfx.win(); confetti(); } else sfx.lose();
+    setTimeout(()=>openDialog($('endDlg')), won ? 600 : 350);
+  }
+
+  function illegal(msg='That is not a legal jump.'){ sfx.bad(); flash(msg,true); }
+
+  function select(i){
+    const ms=movesFrom(i);
+    if (!ms.length){ state.selected=-1; render(); illegal('That peg has no legal jumps.'); return; }
+    state.selected=i; state.hint=null; clearFlash(); sfx.select(); render();
+    announce(`Peg selected. ${ms.length} legal destination${ms.length>1?'s':''}.`);
+  }
+  function deselect(silent){ if (state.selected<0) return; state.selected=-1; render(); if(!silent) announce('Selection cancelled.'); }
+
+  // Unified activation logic used by tap, click and keyboard.
+  function activate(i){
+    if (state.over){ flash('The game is over. Start a new game or undo.'); return; }
+    const sel=state.selected;
+    if (sel>=0){
+      const m = movesFrom(sel).find(x=>x.to===i);
+      if (m) return doMove(m);
+      if (i===sel) return deselect();
+      if (state.board[i]===true) return select(i);
+      illegal(); return;
+    }
+    if (state.board[i]===true) return select(i);
+    // Empty hole with nothing selected: if exactly one peg can jump here, it is still clearer to ask for a peg first.
+    flash('Select a peg first.', true); sfx.bad();
+  }
+
+  function undo(){
+    const m=state.history.pop(); if (!m) return;
+    revert(m); state.redo.push(m); state.over=false; state.selected=-1; state.hint=null; state.focus=m.from;
+    clearFlash(); sfx.undo(); render();
+    const f=holes.get(m.from); f.classList.remove('landed'); void f.offsetWidth; f.classList.add('landed');
+    announce(`Move undone. ${pegCount()} pegs left.`);
+  }
+  function redo(){
+    const m=state.redo.pop(); if (!m) return;
+    apply(m); state.history.push(m); state.selected=-1; state.hint=null; state.focus=m.to;
+    clearFlash(); sfx.move(); render(); animateMove(m);
+    announce(`Move redone. ${pegCount()} pegs left.`);
+    checkEnd();
+  }
+  function hint(){
+    if (state.over) return;
+    const ms=allMoves(); if (!ms.length) return;
+    const m=ms[state.hintIdx % ms.length]; state.hintIdx++;
+    state.hint=m; state.selected=-1; clearFlash(); sfx.hint(); render();
+    const [fr,fc]=rc(m.from), [tr,tc]=rc(m.to);
+    flash(`Hint: move the peg at row ${fr+1}, column ${fc+1} to row ${tr+1}, column ${tc+1}.`);
+  }
+  function reset(){
+    state.board=initialBoard(); state.history=[]; state.redo=[]; state.selected=-1;
+    state.hint=null; state.hintIdx=0; state.over=false; state.focus=CENTER;
+    clearFlash(); render();
+  }
+  function confirmThen(title, text, fn){
+    if (atStart()){ fn(); return; }
+    $('confTitle').textContent=title; $('confText').textContent=text;
+    pendingConfirm=fn; openDialog($('confirmDlg'));
+  }
+  let pendingConfirm=null;
+
+  // ---------- Pointer input: tap + drag, no duplicate events ----------
+  let drag=null;
+  const holeAt = (x,y) => { const el=document.elementFromPoint(x,y); const h=el && el.closest('.hole'); return h && boardEl.contains(h) ? +h.dataset.i : -1; };
+
+  boardEl.addEventListener('pointerdown', e=>{
+    if (e.button>0) return;
+    const h=e.target.closest('.hole');
+    drag={ id:e.pointerId, start:h?+h.dataset.i:-1, x:e.clientX, y:e.clientY, moved:false, ghost:null };
+    try { boardEl.setPointerCapture(e.pointerId); } catch {}
+    e.preventDefault();
+  });
+  boardEl.addEventListener('pointermove', e=>{
+    if (!drag || drag.id!==e.pointerId) return;
+    const s=drag.start;
+    if (!drag.moved && s>=0 && state.board[s]===true && !state.over && Math.hypot(e.clientX-drag.x,e.clientY-drag.y)>8){
+      if (!movesFrom(s).length) return;
+      drag.moved=true;
+      if (state.selected!==s){ state.selected=s; state.hint=null; sfx.select(); render(); }
+      const src=holes.get(s), r=src.getBoundingClientRect();
+      const g=document.createElement('div'); g.className='drag-peg';
+      g.style.width=g.style.height=(r.width*.9)+'px'; document.body.appendChild(g);
+      drag.ghost=g; src.classList.add('dragging');
+    }
+    if (drag.ghost){ drag.ghost.style.left=e.clientX+'px'; drag.ghost.style.top=e.clientY+'px'; }
+  });
+  function endPointer(e, cancelled){
+    if (!drag || drag.id!==e.pointerId) return;
+    const d=drag; drag=null;
+    if (d.ghost){ d.ghost.remove(); holes.get(d.start).classList.remove('dragging'); }
+    if (cancelled) return;
+    if (d.moved){
+      const t=holeAt(e.clientX,e.clientY);
+      const m=movesFrom(d.start).find(x=>x.to===t);
+      if (m) doMove(m); else if (t!==d.start) illegal('Drop the peg on a green highlighted hole.');
+      return;
+    }
+    if (d.start>=0){ state.focus=d.start; activate(d.start); }
+    else deselect(true);   // tap on the wooden board surface clears selection
+  }
+  boardEl.addEventListener('pointerup', e=>endPointer(e,false));
+  boardEl.addEventListener('pointercancel', e=>endPointer(e,true));
+  boardEl.addEventListener('contextmenu', e=>e.preventDefault());
+
+  // ---------- Keyboard on board ----------
+  // Arrow navigation: find the nearest playable hole in that direction, skipping invalid positions.
+  function nextHole(i,dr,dc){
+    let [r,c]=rc(i);
+    for (let k=0;k<N;k++){
+      r+=dr; c+=dc;
+      if (r<0||r>=N||c<0||c>=N){
+        // Leaving the grid on a short arm: try the nearest valid cell in the perpendicular line.
+        return i;
+      }
+      if (isValid(r,c)) return idx(r,c);
+    }
+    return i;
+  }
+  boardEl.addEventListener('keydown', e=>{
+    const h=e.target.closest('.hole'); if (!h) return;
+    const i=+h.dataset.i;
+    const map={ArrowUp:[-1,0],ArrowDown:[1,0],ArrowLeft:[0,-1],ArrowRight:[0,1]};
+    if (map[e.key]){
+      e.preventDefault();
+      const n=nextHole(i,...map[e.key]);
+      state.focus=n; render(); holes.get(n).focus();
+    } else if (e.key==='Enter' || e.key===' '){
+      e.preventDefault(); state.focus=i; activate(i);
+      holes.get(state.focus).focus();
+    } else if (e.key==='Escape'){
+      if (state.selected>=0){ e.preventDefault(); deselect(); }
+    }
+  });
+  boardEl.addEventListener('focusin', e=>{ const h=e.target.closest('.hole'); if(h) state.focus=+h.dataset.i; });
+
+  // ---------- Dialogs (native modal: focus trapped, Esc closes) ----------
+  let lastFocus=null;
+  function openDialog(d){
+    if (d.open) return;
+    document.querySelectorAll('dialog[open]').forEach(x=>x.close());
+    lastFocus=document.activeElement;
+    try { d.showModal(); } catch { d.setAttribute('open',''); }
+    const f=d.querySelector('.dlg-actions .primary') || d.querySelector('button'); f && f.focus();
+  }
+  document.querySelectorAll('dialog').forEach(d=>{
+    d.addEventListener('close', ()=>{
+      if (lastFocus && document.contains(lastFocus)) lastFocus.focus();
+      else holes.get(state.focus).focus();
+    });
+    d.addEventListener('click', e=>{
+      if (e.target.closest('[data-close]') || e.target===d) d.close();
+    });
+  });
+
+  // ---------- Buttons ----------
+  $('undoBtn').onclick=undo;
+  $('redoBtn').onclick=redo;
+  $('hintBtn').onclick=hint;
+  $('newBtn').onclick=()=>confirmThen('Start a new game?','Your current game will be discarded.',()=>{reset();announce('New game started. 32 pegs.');});
+  $('restartBtn').onclick=()=>confirmThen('Restart this game?','The board will return to its starting position and your move history will be cleared.',()=>{reset();announce('Game restarted.');});
+  $('confirmOk').onclick=()=>{ const fn=pendingConfirm; pendingConfirm=null; $('confirmDlg').close(); fn && fn(); };
+  $('playAgain').onclick=()=>{ $('endDlg').close(); reset(); announce('New game started.'); holes.get(CENTER).focus(); };
+  $('endUndo').onclick=()=>{ $('endDlg').close(); undo(); };
+  $('helpBtn').onclick=()=>openDialog($('helpDlg'));
+  $('settingsBtn').onclick=()=>{ $('optSound').checked=settings.sound; $('optContrast').checked=settings.contrast; $('optAnim').checked=settings.noAnim; openDialog($('settingsDlg')); };
+  $('soundBtn').onclick=()=>{ settings.sound=!settings.sound; applySettings(); if(settings.sound) sfx.select(); announce(settings.sound?'Sound on':'Sound muted'); };
+  $('optSound').onchange=e=>{ settings.sound=e.target.checked; applySettings(); };
+  $('optContrast').onchange=e=>{ settings.contrast=e.target.checked; applySettings(); };
+  $('optAnim').onchange=e=>{ settings.noAnim=e.target.checked; applySettings(); };
+
+  function applySettings(){
+    document.body.classList.toggle('contrast',settings.contrast);
+    document.body.classList.toggle('no-anim',settings.noAnim);
+    $('soundBtn').setAttribute('aria-pressed',String(settings.sound));
+    $('soundIcon').textContent=settings.sound?'🔊':'🔇';
+    $('soundLabel').textContent=settings.sound?'Sound on':'Sound off';
+    store.set('settings',settings);
+  }
+
+  // Escape anywhere outside dialogs cancels selection.
+  document.addEventListener('keydown', e=>{
+    if (e.key==='Escape' && !document.querySelector('dialog[open]') && state.selected>=0) deselect();
+  });
+
+  // ---------- Celebration ----------
+  function confetti(){
+    if (settings.noAnim || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const colors=['#ffcf4a','#e9c99a','#2fd27a','#4ab8ff','#ff8a5c'];
+    for (let k=0;k<40;k++){
+      const p=document.createElement('div'); p.className='confetti';
+      p.style.left=Math.random()*100+'vw'; p.style.background=colors[k%colors.length];
+      p.style.animationDuration=(1.8+Math.random()*1.6)+'s'; p.style.animationDelay=(Math.random()*.5)+'s';
+      document.body.appendChild(p); setTimeout(()=>p.remove(),4200);
+    }
+  }
+
+  // ---------- First-visit tip ----------
+  if (!store.get('tipDismissed')) $('tip').hidden=false;
+  $('tipClose').onclick=()=>{ $('tip').hidden=true; store.set('tipDismissed',true); $('helpBtn').focus(); };
+
+  applySettings();
+  reset();
+})();
+</script>
+</body>
+</html>
