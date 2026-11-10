@@ -1,5 +1,8 @@
 # Peg Solitaire
 
+<img width="300" height="242" alt="Peg Solitaire" src="https://github.com/user-attachments/assets/4321471e-3073-4c96-8ad3-b66d7c7aac45" />
+
+
 A classic single-player puzzle game about planning jumps and removing pegs. Play in your browser on desktop, tablet, or mobile.
 
 **Play online:** [ramihast.github.io/peg-solitaire](https://ramihast.github.io/peg-solitaire/)
